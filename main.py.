@@ -1,0 +1,57 @@
+import os
+import openai
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from flask import Flask
+from threading import Thread
+
+# Initialize Flask app
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "GPT Assistant Bot is running!"
+
+# Set up OpenAI API key from environment variables
+openai.api_key = os.getenv('OPENAI_API_KEY')
+
+# Define a function to handle the /start command
+def start(update, context):
+    update.message.reply_text('Hello! I am GPT Assistant. Ask me anything!')
+
+# Define a function to handle user messages
+def handle_message(update, context):
+    user_message = update.message.text
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": user_message},
+            ]
+        )
+        gpt_reply = response.choices[0].message['content'].strip()
+        update.message.reply_text(gpt_reply)
+    except Exception as e:
+        update.message.reply_text("Sorry, I couldn't process that. Please try again later.")
+
+def main():
+    # Set up the Telegram bot with the token from environment variables
+    updater = Updater(os.getenv('TELEGRAM_BOT_TOKEN'), use_context=True)
+    dp = updater.dispatcher
+
+    # Add handlers
+    dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+    # Start the bot
+    updater.start_polling()
+    updater.idle()
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+if __name__ == '__main__':
+    # Run Flask app in a separate thread to keep Railway awake
+    t = Thread(target=run_flask)
+    t.start()
+    main()
